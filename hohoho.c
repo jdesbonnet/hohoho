@@ -1,5 +1,14 @@
 /*
- * newtest.c
+ * hohoho.c
+ *
+ * Copyright 2018 Joe Desbonnet, based on example code from GitHub repository:
+ * https://github.com/jgarff/rpi_ws281x
+ *
+ * Drives a 30 x 16 display comprising 16 strings of WS2812B LEDs. 
+ *
+ * Original licence below:
+ *
+ * ********
  *
  * Copyright (c) 2014 Jeremy Garff <jer @ jers.net>
  *
@@ -98,6 +107,7 @@ ws2811_t ledstring =
     },
 };
 
+// Frame buffer to store display image
 ws2811_led_t *matrix;
 
 static uint8_t running = 1;
@@ -105,6 +115,11 @@ static uint8_t running = 1;
 // Used for scrolling messages
 static uint32_t tick = 0;
 
+static char *message;
+
+/**
+ * Copy 'matrix' framebuffer into ledstring.
+ */
 void matrix_render(void)
 {
     int x, y, k;
@@ -113,6 +128,7 @@ void matrix_render(void)
     {
         for (y = 0; y < height; y++)
         {
+            // Due to wiring configuration, odd lines run in opposite direction to even lines 
             if (y%2==0) 
             {
                 k = y*width + x;
@@ -216,14 +232,6 @@ void matrix_update(void)
         }
     }
 
-    /*
-    for (j = 8; j < 12; j++) {
-        for (i = 22; i<28; i++) {
-            matrix[width*j+i]=0xFFFFFFFF;
-        }
-    }
-    */
-
 }
 
 static void ctrl_c_handler(int signum)
@@ -260,6 +268,7 @@ void parseargs(int argc, char **argv, ws2811_t *ws2811)
 		{"height", required_argument, 0, 'y'},
 		{"width", required_argument, 0, 'x'},
 		{"version", no_argument, 0, 'v'},
+                {"message", required_argument, 0, 'm'},
 		{0, 0, 0, 0}
 	};
 
@@ -291,6 +300,7 @@ void parseargs(int argc, char **argv, ws2811_t *ws2811)
 				"-i (--invert)  - invert pin output (pulse LOW)\n"
 				"-c (--clear)   - clear matrix on exit.\n"
 				"-v (--version) - version information\n"
+                                "-m (--message) - message to display\n"
 				, argv[0]);
 			exit(-1);
 
@@ -394,6 +404,13 @@ void parseargs(int argc, char **argv, ws2811_t *ws2811)
 				}
 			}
 			break;
+		case 'm':
+
+			if (optarg) {
+				message = optarg;
+				fprintf(stderr,"message: %s\n",optarg);
+			}
+			break;
 
 		case 'v':
 			fprintf(stderr, "%s version %s\n", argv[0], VERSION);
@@ -410,32 +427,50 @@ void parseargs(int argc, char **argv, ws2811_t *ws2811)
 }
 
 
+int get_glyph_width (char c) {
+	return CH[(c-32)*7];
+}
+int get_glyph_col (char c,int col) {
+	return CH[(c-32)*7+2+col];
+}
+
 int main(int argc, char *argv[])
 {
 
-    int i;
+	int i,w;
 
-    ws2811_return_t ret;
+	ws2811_return_t ret;
 
-    sprintf(VERSION, "%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO);
+	sprintf(VERSION, "%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO);
 
-    parseargs(argc, argv, &ledstring);
-
-    matrix = malloc(sizeof(ws2811_led_t) * width * height);
-
-    setup_handlers();
-
-    if ((ret = ws2811_init(&ledstring)) != WS2811_SUCCESS)
-    {
-        fprintf(stderr, "ws2811_init failed: %s\n", ws2811_get_return_t_str(ret));
-        return ret;
-    }
+	parseargs(argc, argv, &ledstring);
 
 
-    leds_clear();
+	int message_width=0;
+	fprintf (stderr,"computing message width:\n");
+	for (i = 0; i < strlen(message); i++) {
+		message_width += get_glyph_width(message[i]);
+	}
+	fprintf (stderr,"width=%d\n",message_width);
+	
+	if (message_width < width) {
+		message_width = width;
+	}
 
-    matrix_clear();
-    matrix_render();
+	// Create frame buffer for message
+	matrix = malloc(sizeof(ws2811_led_t) * message_width * height);
+
+
+	matrix_setup();
+
+	setup_handlers();
+
+	if ((ret = ws2811_init(&ledstring)) != WS2811_SUCCESS)
+	{
+		fprintf(stderr, "ws2811_init failed: %s\n", ws2811_get_return_t_str(ret));
+		return ret;
+	}
+
 
     while (running)
     {

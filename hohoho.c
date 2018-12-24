@@ -124,7 +124,10 @@ static int frame_rate;
  */
 void matrix_render(int offset)
 {
-    int x, y, k;
+    int x, y, k, v;
+
+
+fprintf (stderr, "render offset %d\n", offset);
 
     for (x = 0; x < width; x++)
     {
@@ -139,7 +142,16 @@ void matrix_render(int offset)
             {
                 k = (y+1)*width - x - 1;
             }
-            ledstring.channel[0].leds[k] = matrix[y * width + x + offset];
+
+if (k>=(width*height)) {
+	fprintf(stderr,"k out of range\n");
+}
+
+            v = matrix[y * message_width + (x + offset)%message_width];
+            ledstring.channel[0].leds[k] = v;
+if (v!=0 && v!=0x000000ff) {
+fprintf(stderr,"unrecognized color %x",v);
+}
         }
     }
 }
@@ -458,6 +470,7 @@ void matrix_setup(void)
 
 	x = 0;
 
+	/*
 	for (i = 0; i<len; i++) {
 		s = message[i];
 		w = get_glyph_width(s);
@@ -471,6 +484,29 @@ void matrix_setup(void)
 			x++;
 		}
 	}
+	*/
+
+        for (i = 0; i<len; i++) {
+                s = message[i];
+                w = get_glyph_width(s);
+
+fprintf (stderr,"writing '%c' at x=%d\n",s,x);
+
+                for (j = 0; j < w; j++) {
+                        col = CH[ (s-32)*7 + 2 + j];
+                        for (y = 0; y<8; y++) {
+                                //v =  ((col & 1)==0) ? 0 : rainbow[i%sizeof(rainbow)];
+				v = ((col & 1)==0) ? 0 : 0x000000FF;
+                                matrix[message_width*(8-w+j*2)+(x+y*2)] = v;
+				matrix[message_width*(8-w+j*2+1)+(x+y*2)] = v;
+				matrix[message_width*(8-w+j*2)+(x+y*2+1)] = v;
+				matrix[message_width*(8-w+j*2+1)+(x+y*2+1)] = v;
+                                col >>= 1;
+                        }
+                }
+		x += 16;
+        }
+
 
 }
 
@@ -485,10 +521,13 @@ int main(int argc, char *argv[])
 
 	parseargs(argc, argv, &ledstring);
 
+	/*
 	message_width = 0;
 	for (i = 0; i < strlen(message); i++) {
 		message_width += get_glyph_width(message[i]);
 	}
+	*/
+	message_width = strlen(message) * 16;
 	fprintf (stderr,"width=%d\n",message_width);
 	
 	if (message_width < width) {
@@ -514,8 +553,7 @@ int main(int argc, char *argv[])
 	{
 
 
-		//matrix_update();
-		matrix_render(tick%8);
+		matrix_render(tick%(message_width-width));
 		if ((ret = ws2811_render(&ledstring)) != WS2811_SUCCESS)
 		{
 			fprintf(stderr, "ws2811_render failed: %s\n", ws2811_get_return_t_str(ret));

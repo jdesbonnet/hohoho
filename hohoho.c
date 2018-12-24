@@ -115,12 +115,14 @@ static uint8_t running = 1;
 // Used for scrolling messages
 static uint32_t tick = 0;
 
+static int message_width;
 static char *message;
+static int frame_rate;
 
 /**
  * Copy 'matrix' framebuffer into ledstring.
  */
-void matrix_render(void)
+void matrix_render(int offset)
 {
     int x, y, k;
 
@@ -137,7 +139,7 @@ void matrix_render(void)
             {
                 k = (y+1)*width - x - 1;
             }
-            ledstring.channel[0].leds[k] = matrix[y * width + x];
+            ledstring.channel[0].leds[k] = matrix[y * width + x + offset];
         }
     }
 }
@@ -269,6 +271,7 @@ void parseargs(int argc, char **argv, ws2811_t *ws2811)
 		{"width", required_argument, 0, 'x'},
 		{"version", no_argument, 0, 'v'},
                 {"message", required_argument, 0, 'm'},
+		{"fps", required_argument, 0, 'f'},
 		{0, 0, 0, 0}
 	};
 
@@ -405,10 +408,15 @@ void parseargs(int argc, char **argv, ws2811_t *ws2811)
 			}
 			break;
 		case 'm':
-
 			if (optarg) {
 				message = optarg;
 				fprintf(stderr,"message: %s\n",optarg);
+			}
+			break;
+		case 'f':
+			if (optarg) {
+				frame_rate = atoi(optarg);
+				fprintf(stderr,"frame_rate=%d\n",frame_rate);
 			}
 			break;
 
@@ -434,6 +442,38 @@ int get_glyph_col (char c,int col) {
 	return CH[(c-32)*7+2+col];
 }
 
+void matrix_setup(void)
+{
+
+	int x, y, w, i,j,k;
+	ws2811_led_t v;
+	int col;
+	char s;
+
+	int len = strlen(message);
+
+
+	// Clear
+	memset(matrix, 0, message_width*height);
+
+	x = 0;
+
+	for (i = 0; i<len; i++) {
+		s = message[i];
+		w = get_glyph_width(s);
+		for (j = 0; j < w; j++) {
+			col = CH[ (s-32)*7 + 2 + j];
+            		for (y = 0; y<8; y++) {
+				v =  ((col & 1)==0) ? 0 : rainbow[i%sizeof(rainbow)];
+				matrix[width*y+(x%width)] = v;
+				col >>= 1;
+			}
+			x++;
+		}
+	}
+
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -445,9 +485,7 @@ int main(int argc, char *argv[])
 
 	parseargs(argc, argv, &ledstring);
 
-
-	int message_width=0;
-	fprintf (stderr,"computing message width:\n");
+	message_width = 0;
 	for (i = 0; i < strlen(message); i++) {
 		message_width += get_glyph_width(message[i]);
 	}
@@ -472,29 +510,27 @@ int main(int argc, char *argv[])
 	}
 
 
-    while (running)
-    {
+	while (running)
+	{
 
 
-        matrix_update();
-        matrix_render();
+		//matrix_update();
+		matrix_render(tick%8);
+		if ((ret = ws2811_render(&ledstring)) != WS2811_SUCCESS)
+		{
+			fprintf(stderr, "ws2811_render failed: %s\n", ws2811_get_return_t_str(ret));
+			break;
+		}
 
-        if ((ret = ws2811_render(&ledstring)) != WS2811_SUCCESS)
-        {
-            fprintf(stderr, "ws2811_render failed: %s\n", ws2811_get_return_t_str(ret));
-            break;
-        }
+		tick++;
+		fprintf (stderr,"tick %d\n", tick);
 
-        tick++;
-        fprintf (stderr,"tick %d\n", tick);
-
-        // 15 frames /sec
-        usleep(1000000 / 15);
-    }
+		usleep(1000000 / frame_rate);
+	}
 
     if (clear_on_exit) {
 	matrix_clear();
-	matrix_render();
+	matrix_render(0);
 	ws2811_render(&ledstring);
     }
 

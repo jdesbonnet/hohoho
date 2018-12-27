@@ -127,7 +127,7 @@ void matrix_render(int offset)
     int x, y, k, v;
 
 
-fprintf (stderr, "render offset %d\n", offset);
+//fprintf (stderr, "render offset %d\n", offset);
 
     for (x = 0; x < width; x++)
     {
@@ -149,9 +149,9 @@ if (k>=(width*height)) {
 
             v = matrix[y * message_width + (x + offset)%message_width];
             ledstring.channel[0].leds[k] = v;
-if (v!=0 && v!=0x000000ff) {
-fprintf(stderr,"unrecognized color %x",v);
-}
+//if (v!=0 && v!=0x000000ff) {
+//fprintf(stderr,"unrecognized color %x",v);
+//}
         }
     }
 }
@@ -495,13 +495,12 @@ fprintf (stderr,"writing '%c' at x=%d\n",s,x);
                 for (j = 0; j < w; j++) {
                         col = CH[ (s-32)*7 + 2 + j];
                         for (y = 0; y<8; y++) {
-                                //v =  ((col & 1)==0) ? 0 : rainbow[i%sizeof(rainbow)];
-				v = ((col & 1)==0) ? 0 : 0x000000FF;
+                                v =  ((col & 0x80)==0) ? 0 : rainbow[i%sizeof(rainbow)];
                                 matrix[message_width*(8-w+j*2)+(x+y*2)] = v;
 				matrix[message_width*(8-w+j*2+1)+(x+y*2)] = v;
 				matrix[message_width*(8-w+j*2)+(x+y*2+1)] = v;
 				matrix[message_width*(8-w+j*2+1)+(x+y*2+1)] = v;
-                                col >>= 1;
+                                col <<= 1;
                         }
                 }
 		x += 16;

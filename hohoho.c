@@ -117,7 +117,7 @@ static uint32_t tick = 0;
 
 static int message_width;
 static char *message;
-static int frame_rate;
+static int frame_rate = 10;
 
 /**
  * Copy 'matrix' framebuffer into ledstring.
